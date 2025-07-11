@@ -1,4 +1,4 @@
-# AI-Powered Web Scraper
+# Scrappy-AI
 
 A web application that allows you to scrape websites and analyze the content using AI (DeepSeek).
 
