@@ -89,6 +89,4 @@ A web application that allows you to scrape websites, extract various types of c
 - `.env`: Environment variables (API keys)
 - `requirements.txt`: Python dependencies
 
-## License
 
-MIT
