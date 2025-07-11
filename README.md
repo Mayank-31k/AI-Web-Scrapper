@@ -1,14 +1,19 @@
 # Scrappy-AI
 
-A web application that allows you to scrape websites and analyze the content using AI (DeepSeek).
+A web application that allows you to scrape websites, extract various types of content, and analyze it using AI (DeepSeek).
 
 ## Features
 
-- Scrape content from any public website
-- Optionally use CSS selectors to target specific elements
-- Analyze scraped content with DeepSeek AI
+- **Multiple Scraping Modes**:
+  - Text content extraction
+  - Link extraction (internal/external)
+  - Image extraction with previews
+  - Video extraction (including YouTube and Vimeo embeds)
+- AI-powered content analysis using DeepSeek
+- Select and download multiple items
 - Clean, responsive web interface
-- Real-time results
+- Real-time results with loading indicators
+- Option to use CSS selectors for precise content targeting
 
 ## Prerequisites
 
@@ -41,11 +46,40 @@ A web application that allows you to scrape websites and analyze the content usi
 
 ## Usage
 
-1. Enter the URL of the website you want to scrape
-2. (Optional) Add a CSS selector to target specific elements
-3. (Optional) Customize the AI analysis prompt
-4. Click "Scrape & Analyze"
-5. View the AI analysis and raw content
+### Basic Text Scraping
+1. Enter the website URL
+2. Select "Text Content" as the scrape type
+3. (Optional) Add a CSS selector to target specific elements
+4. (Optional) Customize the AI analysis prompt
+5. Click "Scrape & Analyze"
+6. View the AI analysis and extracted text
+
+### Extracting Links
+1. Enter the website URL
+2. Select "All Links" as the scrape type
+3. Click "Scrape & Analyze"
+4. View all links found on the page
+5. Select specific links to download or click "Download All"
+
+### Extracting Images
+1. Enter the website URL
+2. Select "Images" as the scrape type
+3. Click "Scrape & Analyze"
+4. Browse through the extracted images with previews
+5. Select images to download or click "Download All"
+
+### Extracting Videos
+1. Enter the website URL
+2. Select "Videos" as the scrape type
+3. Click "Scrape & Analyze"
+4. View embedded videos (YouTube, Vimeo, and direct video links)
+5. Select videos to download or click "Download All"
+
+### Downloading Content
+- Check the checkboxes next to items you want to download
+- Click the "Download (X)" button to download selected items
+- Click "Download All" to download all items of the current type
+- Files will be downloaded as a ZIP archive
 
 ## Project Structure
 

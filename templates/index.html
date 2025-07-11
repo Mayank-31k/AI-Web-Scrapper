@@ -31,7 +31,7 @@
     <div class="container mx-auto px-4 py-8">
         <header class="text-center mb-12">
             <h1 class="text-4xl font-bold text-blue-600 mb-2">AI-Powered Web Scraper</h1>
-            <p class="text-gray-600">Extract and analyze web content with AI</p>
+            <p class="text-gray-600">Extract, analyze, and download web content with AI</p>
         </header>
 
         <div class="max-w-4xl mx-auto bg-white rounded-lg shadow-lg p-6 mb-8">
@@ -43,27 +43,45 @@
                            placeholder="https://example.com">
                 </div>
                 
-                <div>
-                    <label for="selector" class="block text-sm font-medium text-gray-700 mb-1">
-                        CSS Selector (optional)
-                        <span class="text-xs text-gray-500">e.g., .article, #content, div.post</span>
-                    </label>
-                    <input type="text" id="selector" name="selector"
-                           class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                           placeholder="Leave empty to scrape entire page">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="scrapeType" class="block text-sm font-medium text-gray-700 mb-1">Scrape Type</label>
+                        <select id="scrapeType" name="scrapeType" 
+                                class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                            <option value="text">Text Content</option>
+                            <option value="links">All Links</option>
+                            <option value="images">Images</option>
+                            <option value="videos">Videos</option>
+                        </select>
+                    </div>
+                    
+                    <div id="selectorContainer">
+                        <label for="selector" class="block text-sm font-medium text-gray-700 mb-1">
+                            CSS Selector (optional)
+                            <span class="text-xs text-gray-500">e.g., .article, #content, div.post</span>
+                        </label>
+                        <input type="text" id="selector" name="selector"
+                               class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                               placeholder="Leave empty to scrape entire page">
+                    </div>
                 </div>
                 
-                <div>
+                <div id="promptContainer">
                     <label for="prompt" class="block text-sm font-medium text-gray-700 mb-1">AI Analysis Prompt</label>
                     <textarea id="prompt" name="prompt" rows="3"
                               class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
                               placeholder="Summarize the main points and provide key insights:"></textarea>
                 </div>
                 
-                <div class="flex justify-center">
+                <div class="flex justify-center space-x-4">
                     <button type="submit" 
                             class="px-6 py-3 bg-blue-600 text-white font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 flex items-center">
                         <i class="fas fa-search mr-2"></i> Scrape & Analyze
+                    </button>
+                    
+                    <button type="button" id="downloadBtn" 
+                            class="px-6 py-3 bg-green-600 text-white font-medium rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 flex items-center hidden">
+                        <i class="fas fa-download mr-2"></i> Download Selected
                     </button>
                 </div>
             </form>
@@ -71,8 +89,9 @@
 
         <div id="loading" class="loader"></div>
         
-        <div id="results" class="hidden max-w-4xl mx-auto space-y-8">
-            <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+        <div id="results" class="hidden max-w-6xl mx-auto space-y-8">
+            <!-- AI Analysis Section (for text content) -->
+            <div id="analysisSection" class="bg-white rounded-lg shadow-lg overflow-hidden hidden">
                 <div class="px-6 py-4 bg-gray-800 text-white">
                     <h2 class="text-xl font-semibold">AI Analysis</h2>
                 </div>
@@ -81,15 +100,23 @@
                 </div>
             </div>
             
+            <!-- Results Section -->
             <div class="bg-white rounded-lg shadow-lg overflow-hidden">
                 <div class="px-6 py-4 bg-gray-800 text-white flex justify-between items-center">
-                    <h2 class="text-xl font-semibold">Raw Content</h2>
-                    <button id="toggleContent" class="text-sm text-blue-300 hover:text-white">
-                        <i class="fas fa-eye-slash mr-1"></i> Hide
-                    </button>
+                    <h2 class="text-xl font-semibold" id="resultsTitle">Results</h2>
+                    <div class="flex items-center space-x-2">
+                        <span id="resultCount" class="text-sm bg-blue-500 text-white px-2 py-1 rounded">0 items</span>
+                        <button id="toggleContent" class="text-sm text-blue-300 hover:text-white">
+                            <i class="fas fa-eye-slash mr-1"></i> <span>Hide</span>
+                        </button>
+                    </div>
                 </div>
                 <div id="content" class="p-6 bg-gray-50 text-gray-700 result-box">
-                    <!-- Raw content will be inserted here -->
+                    <!-- Content will be inserted here based on type -->
+                    <div id="textContent" class="whitespace-pre-line"></div>
+                    <div id="linksContent" class="space-y-2"></div>
+                    <div id="imagesContent" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+                    <div id="videosContent" class="space-y-4"></div>
                 </div>
             </div>
         </div>
@@ -100,12 +127,60 @@
     </div>
 
     <script>
+        let currentScrapeType = 'text';
+        let selectedItems = new Set();
+        
+        // Toggle content visibility
+        document.getElementById('toggleContent').addEventListener('click', (e) => {
+            const content = document.getElementById('content');
+            const toggleBtn = document.getElementById('toggleContent');
+            const icon = toggleBtn.querySelector('i');
+            const textSpan = toggleBtn.querySelector('span');
+            
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                icon.className = 'fas fa-eye-slash mr-1';
+                textSpan.textContent = 'Hide';
+            } else {
+                content.style.display = 'none';
+                icon.className = 'fas fa-eye mr-1';
+                textSpan.textContent = 'Show';
+            }
+        });
+        
+        // Handle scrape type change
+        document.getElementById('scrapeType').addEventListener('change', (e) => {
+            currentScrapeType = e.target.value;
+            const promptContainer = document.getElementById('promptContainer');
+            const selectorContainer = document.getElementById('selectorContainer');
+            
+            // Show/hide prompt based on scrape type
+            if (currentScrapeType === 'text') {
+                promptContainer.style.display = 'block';
+                selectorContainer.style.display = 'block';
+            } else {
+                promptContainer.style.display = 'none';
+                
+                if (currentScrapeType === 'images' || currentScrapeType === 'videos') {
+                    selectorContainer.style.display = 'none';
+                } else {
+                    selectorContainer.style.display = 'block';
+                }
+            }
+            
+            // Clear previous results
+            document.getElementById('results').classList.add('hidden');
+            document.getElementById('downloadBtn').classList.add('hidden');
+        });
+        
+        // Handle form submission
         document.getElementById('scrapeForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             
             const url = document.getElementById('url').value;
             const selector = document.getElementById('selector').value;
             const prompt = document.getElementById('prompt').value;
+            const scrapeType = document.getElementById('scrapeType').value;
             const loading = document.getElementById('loading');
             const results = document.getElementById('results');
             const errorDiv = document.getElementById('error');
@@ -114,12 +189,17 @@
             loading.style.display = 'block';
             results.classList.add('hidden');
             errorDiv.classList.add('hidden');
+            document.getElementById('downloadBtn').classList.add('hidden');
             
             try {
                 const formData = new FormData();
                 formData.append('url', url);
                 formData.append('selector', selector);
-                formData.append('prompt', prompt);
+                formData.append('scrape_type', scrapeType);
+                
+                if (scrapeType === 'text' && prompt) {
+                    formData.append('prompt', prompt);
+                }
                 
                 const response = await fetch('/scrape', {
                     method: 'POST',
@@ -129,15 +209,179 @@
                 const data = await response.json();
                 
                 if (data.success) {
-                    // Display analysis
-                    document.getElementById('analysis').innerHTML = data.analysis.replace(/\n/g, '<br>');
+                    // Clear previous content
+                    document.getElementById('textContent').innerHTML = '';
+                    document.getElementById('linksContent').innerHTML = '';
+                    document.getElementById('imagesContent').innerHTML = '';
+                    document.getElementById('videosContent').innerHTML = '';
                     
-                    // Display raw content with syntax highlighting
-                    const contentDiv = document.getElementById('content');
-                    contentDiv.textContent = data.content;
+                    // Show/hide sections based on content type
+                    const analysisSection = document.getElementById('analysisSection');
+                    if (data.analysis) {
+                        document.getElementById('analysis').innerHTML = data.analysis.replace(/\n/g, '<br>');
+                        analysisSection.classList.remove('hidden');
+                    } else {
+                        analysisSection.classList.add('hidden');
+                    }
+                    
+                    // Display content based on type
+                    const resultCount = document.getElementById('resultCount');
+                    
+                    switch(data.type) {
+                        case 'text':
+                            document.getElementById('resultsTitle').textContent = 'Extracted Text';
+                            document.getElementById('textContent').textContent = data.content;
+                            document.getElementById('textContent').classList.remove('hidden');
+                            resultCount.textContent = '1 item';
+                            break;
+                            
+                        case 'links':
+                            document.getElementById('resultsTitle').textContent = 'Extracted Links';
+                            const linksContent = document.getElementById('linksContent');
+                            data.content.forEach((link, index) => {
+                                const linkElement = document.createElement('div');
+                                linkElement.className = 'p-3 border rounded hover:bg-gray-50';
+                                linkElement.innerHTML = `
+                                    <div class="flex justify-between items-start">
+                                        <div class="flex-1 min-w-0">
+                                            <p class="text-sm font-medium text-blue-600 truncate">
+                                                <a href="${link.url}" target="_blank" class="hover:underline">
+                                                    ${link.text}
+                                                </a>
+                                            </p>
+                                            <p class="text-xs text-gray-500 truncate">${link.url}</p>
+                                        </div>
+                                        <div class="ml-4 flex-shrink-0">
+                                            <input type="checkbox" 
+                                                   class="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                                                   data-url="${link.url}">
+                                        </div>
+                                    </div>
+                                    ${link.external ? '<span class="inline-block mt-1 text-xs px-2 py-0.5 bg-yellow-100 text-yellow-800 rounded">External</span>' : ''}
+                                `;
+                                linksContent.appendChild(linkElement);
+                            });
+                            document.getElementById('linksContent').classList.remove('hidden');
+                            resultCount.textContent = `${data.content.length} links`;
+                            break;
+                            
+                        case 'images':
+                            document.getElementById('resultsTitle').textContent = 'Extracted Images';
+                            const imagesContent = document.getElementById('imagesContent');
+                            data.content.forEach((img, index) => {
+                                const imgElement = document.createElement('div');
+                                imgElement.className = 'border rounded-lg overflow-hidden';
+                                imgElement.innerHTML = `
+                                    <div class="relative pb-[100%] bg-gray-100">
+                                        <img src="${img.url}" 
+                                             alt="${img.alt}" 
+                                             class="absolute h-full w-full object-cover"
+                                             loading="lazy"
+                                             onerror="this.onerror=null;this.src='https://via.placeholder.com/300x200?text=Image+not+available';">
+                                    </div>
+                                    <div class="p-3">
+                                        <div class="flex justify-between items-start">
+                                            <div class="text-sm text-gray-600 truncate" title="${img.alt}">
+                                                ${img.alt || 'No alt text'}
+                                            </div>
+                                            <input type="checkbox" 
+                                                   class="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 mt-1"
+                                                   data-url="${img.url}">
+                                        </div>
+                                        <a href="${img.url}" 
+                                           target="_blank" 
+                                           class="block mt-1 text-xs text-blue-600 hover:underline truncate"
+                                           title="${img.url}">
+                                            View full size
+                                        </a>
+                                    </div>
+                                `;
+                                imagesContent.appendChild(imgElement);
+                            });
+                            document.getElementById('imagesContent').classList.remove('hidden');
+                            resultCount.textContent = `${data.content.length} images`;
+                            break;
+                            
+                        case 'videos':
+                            document.getElementById('resultsTitle').textContent = 'Extracted Videos';
+                            const videosContent = document.getElementById('videosContent');
+                            data.content.forEach((video, index) => {
+                                const videoElement = document.createElement('div');
+                                videoElement.className = 'border rounded-lg overflow-hidden';
+                                
+                                let videoEmbed = '';
+                                if (video.type === 'youtube') {
+                                    const videoId = video.url.includes('youtu.be/') 
+                                        ? video.url.split('youtu.be/')[1].split('?')[0]
+                                        : video.url.split('youtube.com/embed/')[1].split('?')[0];
+                                    videoEmbed = `
+                                        <div class="relative pb-[56.25%] bg-black">
+                                            <iframe src="https://www.youtube.com/embed/${videoId}?rel=0" 
+                                                    class="absolute top-0 left-0 w-full h-full" 
+                                                    frameborder="0" 
+                                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                                                    allowfullscreen></iframe>
+                                        </div>
+                                    `;
+                                } else if (video.type === 'vimeo') {
+                                    const videoId = video.url.split('vimeo.com/video/')[1].split('?')[0];
+                                    videoEmbed = `
+                                        <div class="relative pb-[56.25%] bg-black">
+                                            <iframe src="https://player.vimeo.com/video/${videoId}" 
+                                                    class="absolute top-0 left-0 w-full h-full" 
+                                                    frameborder="0" 
+                                                    allow="autoplay; fullscreen; picture-in-picture" 
+                                                    allowfullscreen></iframe>
+                                        </div>
+                                    `;
+                                } else {
+                                    videoEmbed = `
+                                        <div class="relative pb-[56.25%] bg-black">
+                                            <video controls class="w-full h-full absolute top-0 left-0">
+                                                <source src="${video.url}" type="video/mp4">
+                                                Your browser does not support the video tag.
+                                            </video>
+                                        </div>
+                                    `;
+                                }
+                                
+                                videoElement.innerHTML = `
+                                    ${videoEmbed}
+                                    <div class="p-4">
+                                        <div class="flex justify-between items-center">
+                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                                ${video.type.charAt(0).toUpperCase() + video.type.slice(1)}
+                                            </span>
+                                            <input type="checkbox" 
+                                                   class="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                                                   data-url="${video.url}">
+                                        </div>
+                                        <a href="${video.url}" 
+                                           target="_blank" 
+                                           class="block mt-2 text-sm text-blue-600 hover:underline truncate"
+                                           title="${video.url}">
+                                            Open video
+                                        </a>
+                                    </div>
+                                `;
+                                videosContent.appendChild(videoElement);
+                            });
+                            document.getElementById('videosContent').classList.remove('hidden');
+                            resultCount.textContent = `${data.content.length} videos`;
+                            break;
+                    }
+                    
+                    // Show download button if there are items to download
+                    if (data.type !== 'text' && data.content.length > 0) {
+                        document.getElementById('downloadBtn').classList.remove('hidden');
+                    }
                     
                     // Show results
                     results.classList.remove('hidden');
+                    
+                    // Initialize checkboxes
+                    initializeCheckboxes();
+                    
                 } else {
                     throw new Error(data.error || 'An unknown error occurred');
                 }
@@ -150,18 +394,92 @@
             }
         });
         
-        // Toggle content visibility
-        document.getElementById('toggleContent').addEventListener('click', () => {
-            const content = document.getElementById('content');
-            const toggleBtn = document.getElementById('toggleContent');
+        // Initialize checkboxes and selection
+        function initializeCheckboxes() {
+            selectedItems.clear();
             
-            if (content.style.display === 'none') {
-                content.style.display = 'block';
-                toggleBtn.innerHTML = '<i class="fas fa-eye-slash mr-1"></i> Hide';
-            } else {
-                content.style.display = 'none';
-                toggleBtn.innerHTML = '<i class="fas fa-eye mr-1"></i> Show';
+            document.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+                checkbox.addEventListener('change', (e) => {
+                    const url = e.target.dataset.url;
+                    if (e.target.checked) {
+                        selectedItems.add(url);
+                    } else {
+                        selectedItems.delete(url);
+                    }
+                    
+                    // Update download button text
+                    const downloadBtn = document.getElementById('downloadBtn');
+                    if (selectedItems.size > 0) {
+                        downloadBtn.innerHTML = `<i class="fas fa-download mr-2"></i> Download (${selectedItems.size})`;
+                    } else {
+                        downloadBtn.innerHTML = '<i class="fas fa-download mr-2"></i> Download All';
+                    }
+                });
+            });
+        }
+        
+        // Handle download button click
+        document.getElementById('downloadBtn').addEventListener('click', async () => {
+            const loading = document.getElementById('loading');
+            const errorDiv = document.getElementById('error');
+            const downloadBtn = document.getElementById('downloadBtn');
+            
+            // Get all items if none selected
+            const itemsToDownload = selectedItems.size > 0 
+                ? Array.from(selectedItems) 
+                : Array.from(document.querySelectorAll('input[type="checkbox"]')).map(cb => cb.dataset.url);
+            
+            if (itemsToDownload.length === 0) {
+                errorDiv.textContent = 'No items selected for download';
+                errorDiv.classList.remove('hidden');
+                return;
             }
+            
+            try {
+                loading.style.display = 'block';
+                downloadBtn.disabled = true;
+                errorDiv.classList.add('hidden');
+                
+                const response = await fetch('/download', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        urls: itemsToDownload,
+                        content_type: currentScrapeType
+                    })
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Failed to download files');
+                }
+                
+                // Create a download link for the zip file
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `scraped_${currentScrapeType}_${new Date().toISOString().slice(0, 10)}.zip`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                
+            } catch (error) {
+                errorDiv.textContent = error.message;
+                errorDiv.classList.remove('hidden');
+            } finally {
+                loading.style.display = 'none';
+                downloadBtn.disabled = false;
+            }
+        });
+        
+        // Initialize UI
+        document.addEventListener('DOMContentLoaded', () => {
+            // Hide prompt for non-text content by default
+            document.getElementById('promptContainer').style.display = 'block';
         });
     </script>
 </body>
